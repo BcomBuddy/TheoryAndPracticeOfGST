@@ -49,15 +49,15 @@ const Homepage: React.FC<HomepageProps> = ({ onModuleSelect }) => {
   const videoOptions = {
     english: {
       label: 'English',
-      url: 'https://www.youtube.com/embed/0qYR-ouQWUc?rel=0&modestbranding=1'
+      url: 'https://www.youtube.com/embed/zpaLAL8zbjg?rel=0&modestbranding=1'
     },
     hindi: {
       label: 'Hindi/Urdu',
-      url: 'https://www.youtube.com/embed/XUVh2ZJw9iA?rel=0&modestbranding=1'
+      url: 'https://www.youtube.com/embed/3eywcG_eCto?rel=0&modestbranding=1'
     },
     telugu: {
       label: 'Telugu',
-      url: 'https://www.youtube.com/embed/0cgGtm7KuTE?rel=0&modestbranding=1'
+      url: 'https://www.youtube.com/embed/WwXx1I60L2k?rel=0&modestbranding=1'
     }
   };
 
