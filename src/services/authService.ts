@@ -41,75 +41,213 @@ const getErrorMessage = (error: AuthError): string => {
       return 'Popup was blocked by browser. Please allow popups and try again.';
     case 'auth/cancelled-popup-request':
       return 'Sign-in was cancelled. Please try again.';
-    case 'auth/invalid-email':
-      return 'Please enter a valid email address.';
-    case 'auth/user-not-found':
-      return 'No account found with this email address.';
-    case 'auth/too-many-requests':
-      return 'Too many password reset attempts. Please try again later.';
     default:
       return 'An error occurred during authentication. Please try again.';
   }
 };
 
-// Authentication service class
+export interface UserData {
+  uid: string;
+  email: string;
+  name: string;
+  yearOfStudy?: string;
+  role?: string;
+  isAdmin?: boolean;
+  shellDomain?: string;
+  microAppDomain?: string;
+  authMethod?: 'firebase' | 'sso';
+}
+
 export class AuthService {
-  // Sign in with email and password
+  private static readonly USER_KEY = 'user_data';
+  private static readonly AUTH_METHOD_KEY = 'auth_method';
+
+  // SSO Methods
+  static validateTokenFromShell(): UserData | null {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const isSSO = urlParams.get('sso') === 'true';
+
+    if (!token || !isSSO) {
+      return null;
+    }
+
+    try {
+      const tokenData = JSON.parse(decodeURIComponent(token));
+      
+      if (!tokenData.uid || !tokenData.email) {
+        return null;
+      }
+
+      if (tokenData.exp < Math.floor(Date.now() / 1000)) {
+        return null;
+      }
+
+      const userData: UserData = {
+        uid: tokenData.uid,
+        email: tokenData.email,
+        name: tokenData.name,
+        yearOfStudy: tokenData.yearOfStudy,
+        role: tokenData.role,
+        isAdmin: tokenData.isAdmin,
+        shellDomain: tokenData.shellDomain,
+        microAppDomain: tokenData.microAppDomain,
+        authMethod: 'sso'
+      };
+
+      localStorage.setItem(this.USER_KEY, JSON.stringify(userData));
+      localStorage.setItem(this.AUTH_METHOD_KEY, 'sso');
+      this.cleanUrl();
+      
+      return userData;
+    } catch (error) {
+      console.error('Error validating token:', error);
+      return null;
+    }
+  }
+
+  static getUserData(): UserData | null {
+    const userData = localStorage.getItem(this.USER_KEY);
+    if (!userData) return null;
+
+    try {
+      return JSON.parse(userData);
+    } catch {
+      return null;
+    }
+  }
+
+  static getAuthMethod(): 'firebase' | 'sso' | null {
+    return localStorage.getItem(this.AUTH_METHOD_KEY) as 'firebase' | 'sso' | null;
+  }
+
+  static isAuthenticated(): boolean {
+    const authMethod = this.getAuthMethod();
+    
+    if (authMethod === 'sso') {
+      return this.getUserData() !== null;
+    } else if (authMethod === 'firebase') {
+      return auth.currentUser !== null;
+    }
+    
+    return false;
+  }
+
+  static logout(): void {
+    const authMethod = this.getAuthMethod();
+    
+    if (authMethod === 'sso') {
+      localStorage.removeItem(this.USER_KEY);
+      localStorage.removeItem(this.AUTH_METHOD_KEY);
+      
+      const userData = this.getUserData();
+      const shellDomain = userData?.shellDomain || 
+                         new URLSearchParams(window.location.search).get('shell') || 
+                         'https://bcombuddy.netlify.app';
+      
+      window.location.href = shellDomain;
+    } else if (authMethod === 'firebase') {
+      localStorage.removeItem(this.USER_KEY);
+      localStorage.removeItem(this.AUTH_METHOD_KEY);
+      firebaseSignOut(auth);
+    }
+  }
+
+  private static cleanUrl(): void {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token');
+    url.searchParams.delete('sso');
+    url.searchParams.delete('shell');
+    window.history.replaceState({}, document.title, url.toString());
+  }
+
+  // Firebase Methods
   static async signInWithEmail(email: string, password: string): Promise<User> {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Store user data for consistency
+      const userData: UserData = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email || '',
+        name: userCredential.user.displayName || '',
+        authMethod: 'firebase'
+      };
+      
+      localStorage.setItem(this.USER_KEY, JSON.stringify(userData));
+      localStorage.setItem(this.AUTH_METHOD_KEY, 'firebase');
+      
       return userCredential.user;
     } catch (error) {
       throw new Error(getErrorMessage(error as AuthError));
     }
   }
 
-  // Sign in with Google
   static async signInWithGoogle(): Promise<User> {
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      
+      // Store user data for consistency
+      const userData: UserData = {
+        uid: result.user.uid,
+        email: result.user.email || '',
+        name: result.user.displayName || '',
+        authMethod: 'firebase'
+      };
+      
+      localStorage.setItem(this.USER_KEY, JSON.stringify(userData));
+      localStorage.setItem(this.AUTH_METHOD_KEY, 'firebase');
+      
       return result.user;
     } catch (error) {
       throw new Error(getErrorMessage(error as AuthError));
     }
   }
 
-  // Create account with email and password
   static async createAccount(email: string, password: string): Promise<User> {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Store user data for consistency
+      const userData: UserData = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email || '',
+        name: userCredential.user.displayName || '',
+        authMethod: 'firebase'
+      };
+      
+      localStorage.setItem(this.USER_KEY, JSON.stringify(userData));
+      localStorage.setItem(this.AUTH_METHOD_KEY, 'firebase');
+      
       return userCredential.user;
     } catch (error) {
       throw new Error(getErrorMessage(error as AuthError));
     }
   }
 
-  // Sign out
   static async signOut(): Promise<void> {
     try {
       await firebaseSignOut(auth);
+      localStorage.removeItem(this.USER_KEY);
+      localStorage.removeItem(this.AUTH_METHOD_KEY);
     } catch (error) {
       throw new Error('Failed to sign out. Please try again.');
     }
   }
 
-  // Get current user
   static getCurrentUser(): User | null {
     return auth.currentUser;
   }
 
-  // Listen to auth state changes
   static onAuthStateChanged(callback: (user: User | null) => void): () => void {
     return onAuthStateChanged(auth, callback);
   }
 
-  // Validate email format
   static validateEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   }
 
-  // Validate password strength
   static validatePassword(password: string): { isValid: boolean; message: string } {
     if (password.length < 6) {
       return { isValid: false, message: 'Password must be at least 6 characters long' };
@@ -117,7 +255,6 @@ export class AuthService {
     return { isValid: true, message: '' };
   }
 
-  // Send password reset email
   static async sendPasswordResetEmail(email: string): Promise<void> {
     try {
       await sendPasswordResetEmail(auth, email, {

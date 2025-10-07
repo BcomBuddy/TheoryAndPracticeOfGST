@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BookOpen, Calculator, FileText, Settings, Briefcase, ArrowRight } from 'lucide-react';
+import { SSOTestComponent } from './SSOTestComponent';
 
 interface HomepageProps {
   onModuleSelect: (module: string) => void;
@@ -154,6 +155,11 @@ const Homepage: React.FC<HomepageProps> = ({ onModuleSelect }) => {
             </div>
           );
         })}
+      </div>
+
+      {/* SSO Test Component */}
+      <div className="mb-12">
+        <SSOTestComponent />
       </div>
 
       <div className="mt-12 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-8 border border-blue-100">
